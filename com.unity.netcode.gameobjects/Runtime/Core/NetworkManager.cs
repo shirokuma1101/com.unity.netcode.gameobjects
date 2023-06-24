@@ -357,8 +357,8 @@ namespace Unity.Netcode
         /// </summary>
         public event Action<NetworkObject> OnObjectSpawnedCallback
         {
-            add => ConnectionManager.OnObjectSpawnedCallback += value;
-            remove => ConnectionManager.OnObjectSpawnedCallback -= value;
+            add => SpawnManager.OnObjectSpawnedCallback += value;
+            remove => SpawnManager.OnObjectSpawnedCallback -= value;
         }
 
         // Edited
