@@ -351,6 +351,26 @@ namespace Unity.Netcode
         /// <param name="arg1">The first parameter of this event will be set to <see cref="true"/> when stopping the host client and <see cref="false"/> when stopping a standard client instance.</param>
         public event Action<bool> OnClientStopped = null;
 
+        // Edited
+        /// <summary>
+        /// This callback is invoke when a new object is spawned on the server
+        /// </summary>
+        public event Action<NetworkObject> OnObjectSpawnedCallback
+        {
+            add => ConnectionManager.OnObjectSpawnedCallback += value;
+            remove => ConnectionManager.OnObjectSpawnedCallback -= value;
+        }
+
+        // Edited
+        /// <summary>
+        /// This callback is invoke when a new object is despawned on the server
+        /// </summary>
+        public event Action<NetworkObject> OnObjectDespawnedCallback
+        {
+            add => SpawnManager.OnObjectDespawnedCallback += value;
+            remove => SpawnManager.OnObjectDespawnedCallback -= value;
+        }
+
         /// <summary>
         /// The <see cref="NetworkPrefabHandler"/> instance created after starting the <see cref="NetworkManager"/>
         /// </summary>

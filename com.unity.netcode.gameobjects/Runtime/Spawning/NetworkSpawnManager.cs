@@ -40,6 +40,16 @@ namespace Unity.Netcode
         /// </summary>
         private Dictionary<ulong, ulong> m_ObjectToOwnershipTable = new Dictionary<ulong, ulong>();
 
+        /// <summary>
+        /// The callback to invoke once a client connects. This callback is only ran on the server and on the local client that connects.
+        /// </summary>
+        public event Action<NetworkObject> OnObjectSpawnedCallback = null;
+
+        /// <summary>
+        /// The callback to invoke when a client disconnects. This callback is only ran on the server and on the local client that disconnects.
+        /// </summary>
+        public event Action<NetworkObject> OnObjectDespawnedCallback = null;
+
         internal void MarkObjectForShowingTo(NetworkObject networkObject, ulong clientId)
         {
             if (!ObjectsToShowToClient.ContainsKey(clientId))
@@ -591,6 +601,9 @@ namespace Unity.Netcode
             SpawnedObjects.Add(networkObject.NetworkObjectId, networkObject);
             SpawnedObjectsList.Add(networkObject);
 
+            // Edited
+            OnObjectSpawnedCallback?.Invoke(networkObject);
+
             if (NetworkManager.IsServer)
             {
                 if (playerObject)
@@ -932,6 +945,9 @@ namespace Unity.Netcode
             if (SpawnedObjects.Remove(networkObject.NetworkObjectId))
             {
                 SpawnedObjectsList.Remove(networkObject);
+
+                // Edited
+                OnObjectDespawnedCallback?.Invoke(networkObject);
             }
 
             // Always clear out the observers list when despawned
