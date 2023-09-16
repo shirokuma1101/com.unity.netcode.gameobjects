@@ -176,6 +176,7 @@ namespace Unity.Netcode
 
         /// <summary>
         /// The callback to invoke if the <see cref="NetworkTransport"/> fails.
+        /// This callback will be null on shutdown.
         /// </summary>
         /// <remarks>
         /// A failure of the transport is always followed by the <see cref="NetworkManager"/> shutting down. Recovering
@@ -190,6 +191,7 @@ namespace Unity.Netcode
 
         /// <summary>
         /// The callback to invoke during connection approval. Allows client code to decide whether or not to allow incoming client connection
+        /// This callback will be null on shutdown.
         /// </summary>
         public Action<ConnectionApprovalRequest, ConnectionApprovalResponse> ConnectionApprovalCallback
         {
@@ -207,6 +209,7 @@ namespace Unity.Netcode
 
         /// <summary>
         /// The callback to invoke once a client connects. This callback is only ran on the server and on the local client that connects.
+        /// This callback will be null on shutdown.
         /// </summary>
         public event Action<ulong> OnClientConnectedCallback
         {
@@ -216,11 +219,34 @@ namespace Unity.Netcode
 
         /// <summary>
         /// The callback to invoke when a client disconnects. This callback is only ran on the server and on the local client that disconnects.
+        /// This callback will be null on shutdown.
         /// </summary>
         public event Action<ulong> OnClientDisconnectCallback
         {
             add => ConnectionManager.OnClientDisconnectCallback += value;
             remove => ConnectionManager.OnClientDisconnectCallback -= value;
+        }
+
+        // Edited
+        /// <summary>
+        /// This callback is invoke when a new object is spawned on the server.
+        /// This callback will be null on shutdown.
+        /// </summary>
+        public event Action<NetworkObject> OnObjectSpawnedCallback
+        {
+            add => SpawnManager.OnObjectSpawnedCallback += value;
+            remove => SpawnManager.OnObjectSpawnedCallback -= value;
+        }
+
+        // Edited
+        /// <summary>
+        /// This callback is invoke when a new object is despawned on the server.
+        /// This callback will be null on shutdown.
+        /// </summary>
+        public event Action<NetworkObject> OnObjectDespawnedCallback
+        {
+            add => SpawnManager.OnObjectDespawnedCallback += value;
+            remove => SpawnManager.OnObjectDespawnedCallback -= value;
         }
 
         /// <summary>
@@ -330,22 +356,26 @@ namespace Unity.Netcode
 
         /// <summary>
         /// This callback is invoked when the local server is started and listening for incoming connections.
+        /// This callback will be null on shutdown.
         /// </summary>
         public event Action OnServerStarted = null;
 
         /// <summary>
-        /// The callback to invoke once the local client is ready
+        /// The callback to invoke once the local client is ready.
+        /// This callback will be null on shutdown.
         /// </summary>
         public event Action OnClientStarted = null;
 
         /// <summary>
         /// This callback is invoked once the local server is stopped.
+        /// This callback will be null on shutdown.
         /// </summary>
         /// <param name="arg1">The first parameter of this event will be set to <see cref="true"/> when stopping a host instance and <see cref="false"/> when stopping a server instance.</param>
         public event Action<bool> OnServerStopped = null;
 
         /// <summary>
-        /// The callback to invoke once the local client stops
+        /// The callback to invoke once the local client stops.
+        /// This callback will be null on shutdown.
         /// </summary>
         /// <remarks>The parameter states whether the client was running in host mode</remarks>
         /// <param name="arg1">The first parameter of this event will be set to <see cref="true"/> when stopping the host client and <see cref="false"/> when stopping a standard client instance.</param>
@@ -353,23 +383,16 @@ namespace Unity.Netcode
 
         // Edited
         /// <summary>
-        /// This callback is invoke when a new object is spawned on the server
+        /// This callback is invoked when NetworkManager is initialized.
+        /// This callback is never null internally.
         /// </summary>
-        public event Action<NetworkObject> OnObjectSpawnedCallback
-        {
-            add => SpawnManager.OnObjectSpawnedCallback += value;
-            remove => SpawnManager.OnObjectSpawnedCallback -= value;
-        }
+        public event Action OnInitialized = null;
 
-        // Edited
         /// <summary>
-        /// This callback is invoke when a new object is despawned on the server
+        /// This callback is invoked when NetworkManager is shutdown.
+        /// This callback is never null internally.
         /// </summary>
-        public event Action<NetworkObject> OnObjectDespawnedCallback
-        {
-            add => SpawnManager.OnObjectDespawnedCallback += value;
-            remove => SpawnManager.OnObjectDespawnedCallback -= value;
-        }
+        public event Action OnShutdown = null;
 
         /// <summary>
         /// The <see cref="NetworkPrefabHandler"/> instance created after starting the <see cref="NetworkManager"/>
@@ -696,6 +719,10 @@ namespace Unity.Netcode
 
             NetworkConfig.InitializePrefabs();
             PrefabHandler.RegisterPlayerPrefab();
+
+            // Edited
+            // Invoke initialization callback
+            OnInitialized?.Invoke();
         }
 
         private enum StartType
@@ -1030,6 +1057,13 @@ namespace Unity.Netcode
                 OnServerStopped?.Invoke(ConnectionManager.LocalClient.IsClient);
             }
 
+            // Edited
+            // Clear all callbacks
+            OnServerStarted = null;
+            OnClientStarted = null;
+            OnServerStopped = null;
+            OnClientStopped = null;
+
             // Reset the client's roles
             ConnectionManager.LocalClient.SetRole(false, false);
 
@@ -1044,6 +1078,10 @@ namespace Unity.Netcode
             // can unsubscribe from tick updates and such.
             NetworkTimeSystem?.Shutdown();
             NetworkTickSystem = null;
+
+            // Edited
+            // Invoke shutdown callback
+            OnShutdown?.Invoke();
         }
 
         // Ensures that the NetworkManager is cleaned up before OnDestroy is run on NetworkObjects and NetworkBehaviours when quitting the application.

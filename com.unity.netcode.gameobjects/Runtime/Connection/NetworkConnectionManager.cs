@@ -1010,6 +1010,13 @@ namespace Unity.Netcode
                     }
                 }
             }
+
+            // Edited
+            // Clear all callbacks
+            OnClientConnectedCallback = null;
+            OnClientDisconnectCallback = null;
+            OnTransportFailure = null;
+            ConnectionApprovalCallback = null;
         }
 
         internal unsafe int SendMessage<TMessageType, TClientIdListType>(ref TMessageType message, NetworkDelivery delivery, in TClientIdListType clientIds)
