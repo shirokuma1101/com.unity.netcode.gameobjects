@@ -1,3 +1,26 @@
+# Netcode for GameObjects 1.5.1 based extended version
+
+## Added features
+
+- Added a attribute
+  - `BroadCastRpc` : Invoked by the server or client and executed on all clients, including the sender.
+- Added a event
+  - `OnObjectSpawnedCallback` : Called when the object is spawned.
+  - `OnObjectDespawnedCallback` : Called when the object is despawned.
+  - `OnInitialize` : Called when the object is initialized. (This will **not** be null on Shutdown.)
+  - `OnShutdown` : Called when the object is shutdown.(This will **not** be null on Shutdown.)
+- Clean up when the shutdown
+  - `OnServerStarted`
+  - `OnClientStarted`
+  - `OnServerStopped`
+  - `OnClientStopped`
+  - `OnClientConnectedCallback`
+  - `OnClientDisconnectCallback`
+  - `OnTransportFailure`
+  - `ConnectionApprovalCallback`
+
+## --- Below is the original README.md ---
+
 # Netcode for GameObjects
 
 [![Forums](https://img.shields.io/badge/unity--forums-multiplayer-blue)](https://forum.unity.com/forums/multiplayer.26/) [![Discord](https://img.shields.io/discord/449263083769036810.svg?label=discord&logo=discord&color=informational)](https://discord.gg/FM8SE9E)
