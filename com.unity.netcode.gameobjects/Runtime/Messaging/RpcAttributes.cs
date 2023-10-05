@@ -48,4 +48,17 @@ namespace Unity.Netcode
     /// </summary>
     [AttributeUsage(AttributeTargets.Method)]
     public class ClientRpcAttribute : RpcAttribute { }
+
+    /// <summary>
+    /// <para>Marks a method as BroadCastRpc.</para>
+    /// <para>A BroadCastRpc marked will be fired by server or client and executed on all clients including the sender.</para>
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method)]
+    public class BroadCastRpcAttribute : RpcAttribute
+    {
+        /// <summary>
+        /// Whether or not the BroadCastRpc should only be run if executed by the owner of the object
+        /// </summary>
+        public bool RequireOwnership = true;
+    }
 }

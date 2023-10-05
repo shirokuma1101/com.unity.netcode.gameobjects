@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
@@ -1106,14 +1107,127 @@ namespace Unity.Netcode.Editor.CodeGen
 
         private void ProcessNetworkBehaviour(TypeDefinition typeDefinition, string[] assemblyDefines)
         {
+            var rpcMethods = new List<MethodDefinition>();
             var rpcHandlers = new List<(uint RpcMethodId, MethodDefinition RpcHandler)>();
             var rpcNames = new List<(uint RpcMethodId, string RpcMethodName)>();
 
             bool isEditorOrDevelopment = assemblyDefines.Contains("UNITY_EDITOR") || assemblyDefines.Contains("DEVELOPMENT_BUILD");
 
-            foreach (var methodDefinition in typeDefinition.Methods)
+            foreach (var methodDefinition in new List<MethodDefinition>(typeDefinition.Methods))
             {
-                var rpcAttribute = CheckAndGetRpcAttribute(methodDefinition);
+                var (rpcAttribute, methodDefinitionName) = CheckAndGetRpcAttribute(methodDefinition);
+                if (rpcAttribute == null)
+                {
+                    continue;
+                }
+
+                // Process only BroadCastRpc first
+                if (rpcAttribute.AttributeType.FullName == CodeGenHelpers.BroadCastRpcAttribute_FullName)
+                {
+                    var instructions = new List<Instruction>();
+                    var processor = methodDefinition.Body.GetILProcessor();
+
+                    // private void {MethodDefinitionName}ClientRpc(params) { ... }
+                    var clientRpcMethod = new MethodDefinition(
+                        $"{methodDefinitionName}ClientRpc",
+                        MethodAttributes.Private | MethodAttributes.HideBySig,
+                        methodDefinition.ReturnType);
+                    {
+                        foreach (var parameter in methodDefinition.Parameters)
+                        {
+                            clientRpcMethod.Parameters.Add(
+                                new ParameterDefinition(parameter.Name, parameter.Attributes, parameter.ParameterType));
+                        }
+
+                        // [ClientRpc]
+                        clientRpcMethod.CustomAttributes.Add(
+                            new CustomAttribute(m_MainModule.ImportReference(typeof(ClientRpcAttribute).GetConstructor(Type.EmptyTypes))));
+
+                        // body
+                        var clientRpcProcessor = clientRpcMethod.Body.GetILProcessor();
+                        foreach (var instruction in processor.Body.Instructions)
+                        {
+                            clientRpcProcessor.Append(instruction);
+                        }
+
+                        // Add the ClientRpc method
+                        rpcMethods.Add(clientRpcMethod);
+                        typeDefinition.Methods.Add(clientRpcMethod);
+                    }
+
+
+                    // private void {MethodDefinitionName}ServerRpc(params) { ... }
+                    var serverRpcMethod = new MethodDefinition(
+                        $"{methodDefinitionName}ServerRpc",
+                        MethodAttributes.Private | MethodAttributes.HideBySig,
+                        methodDefinition.ReturnType);
+                    {
+                        foreach (var parameter in methodDefinition.Parameters)
+                        {
+                            serverRpcMethod.Parameters.Add(
+                                new ParameterDefinition(parameter.Name, parameter.Attributes, parameter.ParameterType));
+                        }
+
+                        // [ServerRpc]
+                        if (rpcAttribute.Fields.Any())
+                        {
+                            foreach (var field in rpcAttribute.Fields)
+                            {
+                                var customAttribute = new CustomAttribute(
+                                    m_MainModule.ImportReference(typeof(ServerRpcAttribute).GetConstructor(Type.EmptyTypes)));
+                                var customAttributeArgument = new CustomAttributeArgument(
+                                    m_MainModule.ImportReference(field.Argument.Type), field.Argument.Value);
+
+                                customAttribute.Fields.Add(
+                                    new CustomAttributeNamedArgument(field.Name, customAttributeArgument));
+                                serverRpcMethod.CustomAttributes.Add(customAttribute);
+                            }
+                        }
+                        else
+                        {
+                            serverRpcMethod.CustomAttributes.Add(
+                                new CustomAttribute(m_MainModule.ImportReference(typeof(ServerRpcAttribute).GetConstructor(Type.EmptyTypes))));
+                        }
+
+                        // {MethodDefinitionName}ClientRpc(params);
+                        var serverRpcProcessor = serverRpcMethod.Body.GetILProcessor();
+                        serverRpcProcessor.Emit(OpCodes.Ldarg_0);
+                        foreach (var parameter in methodDefinition.Parameters)
+                        {
+                            serverRpcProcessor.Emit(OpCodes.Ldarg, parameter);
+                        }
+                        serverRpcProcessor.Emit(OpCodes.Call, clientRpcMethod);
+                        serverRpcProcessor.Emit(OpCodes.Nop);
+                        serverRpcProcessor.Emit(OpCodes.Ret);
+
+                        // Add the ServerRpc method
+                        rpcMethods.Add(serverRpcMethod);
+                        typeDefinition.Methods.Add(serverRpcMethod);
+                    }
+
+
+                    // {MethodDefinitionName}ServerRpc(params);
+                    {
+                        processor.Body.Instructions.Clear();
+                        processor.Emit(OpCodes.Ldarg_0);
+                        foreach (var parameter in methodDefinition.Parameters)
+                        {
+                            processor.Emit(OpCodes.Ldarg, parameter);
+                        }
+                        processor.Emit(OpCodes.Call, serverRpcMethod);
+                        processor.Emit(OpCodes.Nop);
+                        processor.Emit(OpCodes.Ret);
+                    }
+                }
+                else
+                {
+                    rpcMethods.Add(methodDefinition);
+                }
+            }
+
+            foreach (var methodDefinition in rpcMethods)
+            {
+                var (rpcAttribute, methodDefinitionName) = CheckAndGetRpcAttribute(methodDefinition);
                 if (rpcAttribute == null)
                 {
                     continue;
@@ -1267,15 +1381,19 @@ namespace Unity.Netcode.Editor.CodeGen
             m_MainModule.RemoveRecursiveReferences();
         }
 
-        private CustomAttribute CheckAndGetRpcAttribute(MethodDefinition methodDefinition)
+        private (CustomAttribute rpcAttribute, string methodDefinitionName) CheckAndGetRpcAttribute(MethodDefinition methodDefinition)
         {
             CustomAttribute rpcAttribute = null;
+            var methodDefinitionName = methodDefinition.Name;
+
             foreach (var customAttribute in methodDefinition.CustomAttributes)
             {
                 var customAttributeType_FullName = customAttribute.AttributeType.FullName;
 
                 if (customAttributeType_FullName == CodeGenHelpers.ServerRpcAttribute_FullName ||
-                    customAttributeType_FullName == CodeGenHelpers.ClientRpcAttribute_FullName)
+                    customAttributeType_FullName == CodeGenHelpers.ClientRpcAttribute_FullName ||
+                    customAttributeType_FullName == CodeGenHelpers.BroadCastRpcAttribute_FullName
+                    )
                 {
                     bool isValid = true;
 
@@ -1304,16 +1422,23 @@ namespace Unity.Netcode.Editor.CodeGen
                     }
 
                     if (customAttributeType_FullName == CodeGenHelpers.ServerRpcAttribute_FullName &&
-                        !methodDefinition.Name.EndsWith("ServerRpc", StringComparison.OrdinalIgnoreCase))
+                        !methodDefinitionName.EndsWith("ServerRpc", StringComparison.OrdinalIgnoreCase))
                     {
                         m_Diagnostics.AddError(methodDefinition, "ServerRpc method must end with 'ServerRpc' suffix!");
                         isValid = false;
                     }
 
                     if (customAttributeType_FullName == CodeGenHelpers.ClientRpcAttribute_FullName &&
-                        !methodDefinition.Name.EndsWith("ClientRpc", StringComparison.OrdinalIgnoreCase))
+                        !methodDefinitionName.EndsWith("ClientRpc", StringComparison.OrdinalIgnoreCase))
                     {
                         m_Diagnostics.AddError(methodDefinition, "ClientRpc method must end with 'ClientRpc' suffix!");
+                        isValid = false;
+                    }
+
+                    if (customAttributeType_FullName == CodeGenHelpers.BroadCastRpcAttribute_FullName &&
+                        !methodDefinitionName.EndsWith("BroadCastRpc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        m_Diagnostics.AddError(methodDefinition, "BroadCastRpc method must end with 'BroadCastRpc' suffix!");
                         isValid = false;
                     }
 
@@ -1323,27 +1448,35 @@ namespace Unity.Netcode.Editor.CodeGen
                     }
                     else
                     {
-                        return null;
+                        return (null, methodDefinitionName);
                     }
                 }
             }
 
             if (rpcAttribute == null)
             {
-                if (methodDefinition.Name.EndsWith("ServerRpc", StringComparison.OrdinalIgnoreCase))
+                if (methodDefinitionName.EndsWith("ServerRpc", StringComparison.OrdinalIgnoreCase))
                 {
                     m_Diagnostics.AddError(methodDefinition, "ServerRpc method must be marked with 'ServerRpc' attribute!");
                 }
-                else if (methodDefinition.Name.EndsWith("ClientRpc", StringComparison.OrdinalIgnoreCase))
+                else if (methodDefinitionName.EndsWith("ClientRpc", StringComparison.OrdinalIgnoreCase))
                 {
                     m_Diagnostics.AddError(methodDefinition, "ClientRpc method must be marked with 'ClientRpc' attribute!");
                 }
+                else if (methodDefinitionName.EndsWith("BroadCastRpc", StringComparison.OrdinalIgnoreCase))
+                {
+                    m_Diagnostics.AddError(methodDefinition, "BroadCastRpc method must be marked with 'BroadCastRpc' attribute!");
+                }
 
-                return null;
+                return (null, methodDefinitionName);
             }
+
+            // Remove suffixes
+            methodDefinitionName = Regex.Replace(methodDefinitionName, "(ServerRpc|ClientRpc|BroadCastRpc)$", string.Empty, RegexOptions.IgnoreCase);
+
             // Checks for IsSerializable are moved to later as the check is now done by dynamically seeing if any valid
             // serializer OR extension method exists for it.
-            return rpcAttribute;
+            return (rpcAttribute, methodDefinitionName);
         }
 
         private MethodReference GetFastBufferWriterWriteMethod(string name, TypeReference paramType)
