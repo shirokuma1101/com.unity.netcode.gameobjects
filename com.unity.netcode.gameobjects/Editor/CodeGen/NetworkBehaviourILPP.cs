@@ -1134,6 +1134,11 @@ namespace Unity.Netcode.Editor.CodeGen
 
                         // body
                         var clientRpcProcessor = clientRpcMethod.Body.GetILProcessor();
+                        foreach (var variable in processor.Body.Variables)
+                        {
+                            clientRpcMethod.Body.Variables.Add(
+                                new VariableDefinition(variable.VariableType));
+                        }
                         foreach (var instruction in processor.Body.Instructions)
                         {
                             clientRpcProcessor.Append(instruction);
