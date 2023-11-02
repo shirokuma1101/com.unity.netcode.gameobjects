@@ -1102,7 +1102,7 @@ namespace Unity.Netcode.Editor.CodeGen
 
             bool isEditorOrDevelopment = assemblyDefines.Contains("UNITY_EDITOR") || assemblyDefines.Contains("DEVELOPMENT_BUILD");
 
-            foreach (var methodDefinition in new List<MethodDefinition>(typeDefinition.Methods))
+            foreach (var methodDefinition in typeDefinition.Methods.ToArray())
             {
                 var (rpcAttribute, methodDefinitionName) = CheckAndGetRpcAttribute(methodDefinition);
                 if (rpcAttribute == null)
