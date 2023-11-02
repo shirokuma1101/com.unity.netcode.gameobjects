@@ -1257,10 +1257,7 @@ namespace Unity.Netcode.Components
                     return;
                 }
 
-                foreach (var animationState in animationMessage.AnimationStates)
-                {
-                    UpdateAnimationState(animationState);
-                }
+                UpdateAnimationState(animationMessage.AnimationStates[0]);
 
                 if (NetworkManager.ConnectedClientsIds.Count > (IsHost ? 2 : 1))
                 {
@@ -1289,10 +1286,8 @@ namespace Unity.Netcode.Components
                 }
                 return;
             }
-            foreach (var animationState in animationMessage.AnimationStates)
-            {
-                UpdateAnimationState(animationState);
-            }
+
+            UpdateAnimationState(animationMessage.AnimationStates[0]);
         }
 
         /// <summary>
