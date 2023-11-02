@@ -1128,7 +1128,6 @@ namespace Unity.Netcode
         {
             // Make sure ShutdownInProgress returns true during this time
             m_ShuttingDown = true;
-            OnDestroy();
         }
 
         // Note that this gets also called manually by OnSceneUnloaded and OnApplicationQuit
