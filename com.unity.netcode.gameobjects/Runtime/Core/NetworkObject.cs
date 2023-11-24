@@ -114,11 +114,14 @@ namespace Unity.Netcode
                 return instanceGlobalId;
             }
 
-            // If we reached this point, then we are most likely opening a prefab to edit.            
+            // If we reached this point, then we are most likely opening a prefab to edit.
             // The instanceGlobalId will be constructed as if it is a scene object, however when it
             // is serialized its value will be treated as a file asset (the "why" to the below code).
 
             // Construct an imported asset identifier with the type being a source asset (type 3).
+
+            // Edited
+            localFileId = Math.Abs(localFileId);
             var prefabGlobalIdText = string.Format(k_GlobalIdTemplate, 3, guid, localFileId, 0);
 
             // If we can't parse the result log an error and return the instanceGlobalId
