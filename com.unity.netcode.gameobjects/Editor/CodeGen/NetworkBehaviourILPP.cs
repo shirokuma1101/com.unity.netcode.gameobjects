@@ -1202,6 +1202,7 @@ namespace Unity.Netcode.Editor.CodeGen
 
                     // {MethodDefinitionName}ServerRpc(params);
                     {
+                        processor.Body.ExceptionHandlers.Clear();
                         processor.Body.Instructions.Clear();
                         processor.Emit(OpCodes.Ldarg_0);
                         foreach (var parameter in methodDefinition.Parameters)
